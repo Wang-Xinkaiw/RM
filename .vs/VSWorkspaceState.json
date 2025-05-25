@@ -1,8 +1,9 @@
 {
   "ExpandedNodes": [
     "",
-    "\\include"
+    "\\include",
+    "\\src"
   ],
-  "SelectedNode": "\\include\\AngleSolver.hpp",
+  "SelectedNode": "\\src\\test.c",
   "PreviewInSolutionExplorer": false
 }
