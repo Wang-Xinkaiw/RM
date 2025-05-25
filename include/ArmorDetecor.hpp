@@ -5,7 +5,7 @@
 #include<array>
 #include<opencv2/ml.hpp>
 
-//尝试上传更改
+
 namespace rm
 {
 enum ColorChannels
