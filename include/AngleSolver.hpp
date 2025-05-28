@@ -1,3 +1,6 @@
+/*
+基于东南大学2018年开源代码进行改写
+*/
 #ifndef _ANGLESOLVER_H
 #define _ANGLESOLVER_H
 
@@ -9,13 +12,13 @@ namespace rm
 {
 
 struct AngleSolverParam
-{
-    cv::Mat CAM_MATRIX;
+{	
+    cv::Mat CAM_MATRIX;		//相机内参
     cv::Mat DISTORTION_COEFF;
 	
+	//单位为毫米
 	static std::vector<cv::Point3f> POINT_3D_OF_ARMOR_BIG;
 	static std::vector<cv::Point3f> POINT_3D_OF_ARMOR_SMALL;
-	static std::vector<cv::Point3f> POINT_3D_OF_RUNE;
     double Y_DISTANCE_BETWEEN_GUN_AND_CAM = 0;	//枪口补偿
     cv::Size CAM_SIZE = cv::Size(1280,1024);	//相机画幅大小
 
@@ -24,15 +27,15 @@ struct AngleSolverParam
 class AngleSolver
 {
 public:
-    AngleSolver();
     AngleSolver(const AngleSolverParam& AngleSolverParam);
+    AngleSolver(const AngleSolver *angleLastSetting);
 
 	enum AngleFlag
 	{
 		ANGLE_ERROR = 0,                
-		ONLY_ANGLES = 1,		
-		TOO_FAR = 2,			
-		ANGLES_AND_DISTANCE = 3		
+		//ONLY_ANGLES = 1,				
+		ANGLES_AND_DISTANCE = 1,
+		TOO_FAR = 2	
 	}; 
 
 

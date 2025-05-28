@@ -25,25 +25,19 @@ std::vector<cv::Point3f> AngleSolverParam::POINT_3D_OF_ARMOR_SMALL = std::vector
 	cv::Point3f(65, 35, 0),		//br
 	cv::Point3f(-65, 35, 0)		//bl
 };
-std::vector<cv::Point3f> AngleSolverParam::POINT_3D_OF_RUNE = std::vector<cv::Point3f>
-{
-	cv::Point3f(-370, -220, 0),
-	cv::Point3f(0, -220, 0),
-	cv::Point3f(370, -220, 0),
-	cv::Point3f(-370, 0, 0),
-	cv::Point3f(0, 0, 0),
-	cv::Point3f(370, 0, 0),
-	cv::Point3f(-370, 220, 0),
-	cv::Point3f(0, 220, 0),
-	cv::Point3f(370, 220, 0)
-};
 
-AngleSolver::AngleSolver()
-{}
 
-AngleSolver::AngleSolver(const AngleSolverParam & AngleSolverParam)
+AngleSolver::AngleSolver(const AngleSolverParam& AngleSolverParam)
 {
 	_params = AngleSolverParam;
+	_cam_instant_matrix = _params.CAM_MATRIX.clone();
+	for (int ll = 0; ll <= 3; ll++)
+		target_nothing.push_back(cv::Point2f(0.0, 0.0));
+}
+
+AngleSolver::AngleSolver(const AngleSolver *angleLastSetting)
+{
+	_params = angleLastSetting->_params;
 	_cam_instant_matrix = _params.CAM_MATRIX.clone();
 	for(int ll = 0; ll <= 3; ll++)
 		target_nothing.push_back(cv::Point2f(0.0, 0.0));
@@ -51,15 +45,15 @@ AngleSolver::AngleSolver(const AngleSolverParam & AngleSolverParam)
 
 void AngleSolver::setTarget(const std::vector<cv::Point2f> objectPoints, int objectType)
 {
-	//objectype 1:小装甲板
-	if(objectType == 1 || objectType == 2)
+	//objectype 0:小装甲板
+	if(objectType == 0 || objectType == 1)
 	{
 		if(angle_solver_algorithm == 0 || angle_solver_algorithm == 2)
 		{
 			angle_solver_algorithm = 1; cout << "algorithm is reset to PNP Solution" << endl;
 		}
 		point_2d_of_armor = objectPoints;
-		if(objectType == 1)
+		if(objectType == 0)
 			enemy_type = 0;
 		else
 			enemy_type = 1;
@@ -70,7 +64,7 @@ void AngleSolver::setTarget(const std::vector<cv::Point2f> objectPoints, int obj
 
 AngleSolver::AngleFlag AngleSolver::solve()
 {
-	//四点解算
+	//PnP解算
 	if(angle_solver_algorithm == 1)
 	{
 		if(enemy_type == 1)
@@ -80,7 +74,7 @@ AngleSolver::AngleFlag AngleSolver::solve()
 		_tVec.at<double>(1, 0) -= _params.Y_DISTANCE_BETWEEN_GUN_AND_CAM;
 		xErr = atan(_tVec.at<double>(0, 0) / _tVec.at<double>(2, 0)) / 2 / CV_PI * 360;
 		yErr = atan(_tVec.at<double>(1, 0) / _tVec.at<double>(2, 0)) / 2 / CV_PI * 360;
-		euclideanDistance = sqrt(_tVec.at<double>(0, 0)*_tVec.at<double>(0, 0) + _tVec.at<double>(1, 0)*_tVec.at<double>(1, 0) + _tVec.at<double>(2, 0)* _tVec.at<double>(2, 0));
+		euclideanDistance = hypot(_tVec.at<double>(0,0),hypot(_tVec.at<double>(1,0),_tVec.at<double>(2,0)))
 		if(euclideanDistance >= 8500)
 		{
 			return TOO_FAR;
@@ -89,7 +83,7 @@ AngleSolver::AngleFlag AngleSolver::solve()
 		return ANGLES_AND_DISTANCE;
 	}
 	//单点解算
-	if(angle_solver_algorithm == 0)
+	/*if(angle_solver_algorithm == 0)
 	{
 		double x1, x2, y1, y2, r2, k1, k2, p1, p2, y_ture;
 		x1 = (centerPoint.x - _cam_instant_matrix.at<double>(0, 2)) / _cam_instant_matrix.at<double>(0, 0);
@@ -106,13 +100,14 @@ AngleSolver::AngleFlag AngleSolver::solve()
 		yErr = atan(y_ture) / 2 / CV_PI * 360;
 		
 		return ONLY_ANGLES;
-	}
+	}*/
 	
 	return ANGLE_ERROR;
 }
 
 void AngleSolver::compensateOffset()
 {
+	//需要了解这个偏移补偿的z是到哪个平面的距离
 	/* z of the camera COMS */
 	const auto offset_z = 115.0;
 	const auto& d = euclideanDistance;
@@ -128,6 +123,7 @@ void AngleSolver::compensateOffset()
 
 void AngleSolver::compensateGravity()
 {
+	//可能可以改进
 	const auto& theta_p_prime = yErr / 180 * CV_PI;
 	const auto& d_prime = euclideanDistance;
 	const auto& v = bullet_speed;
