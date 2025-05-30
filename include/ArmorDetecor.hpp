@@ -83,7 +83,7 @@ struct ArmorParam
 class LightDescription
 {
 public:
-    LightDescription()£»
+    LightDescription(){}£»
     LightDescription(const cv::RotatedRect& light)
     {
         width = light.size.width;
@@ -91,7 +91,7 @@ public:
         center = light.center;
         angle = light.angle;
         area = light.size.area();
-		//light.points(points);
+		light.points(points);
 	}
  
 	
@@ -121,6 +121,7 @@ public:
 	
 	void clear()
 	{
+		//numScore = 0;
 		distScore = 0;
 		for(int i = 0; i < 4; i++)
 		{
@@ -129,6 +130,8 @@ public:
 		type = UNKNOWN_ARMOR;
 	}
 
+	//void getLastImg(const cv::Mat& lastImg);
+
 	std::array<cv::RotatedRect, 2> lightPairs; //0 left, 1 right
 	float distScore;		//S2 = e^(-offset)
 
@@ -136,9 +139,7 @@ public:
 	std::vector<cv::Point2f> vertex; //four vertex of armor area, lihgt bar area exclued!!	
 	
 	cv::Point2f center;
-	//	0 -> small
-	//	1 -> big
-	//	-1 -> unkown
+	cv::Mat lastImg;
 	int type;
 };
 
@@ -151,16 +152,15 @@ public:
 	{
 		ARMOR_NO = 0,		// not found
 		ARMOR_LOST = 1,		// lose tracking
-		ARMOR_GLOBAL = 2,	// armor found globally
+		ARMOR_NEW = 2,	// armor found new
 		ARMOR_LOCAL = 3		// armor found locally(in tracking mode)
 	};
 
-    ArmorDetector();
-	ArmorDetector(const ArmorParam& armorParam);
+    ArmorDetector(const ArmorParam& armorParam);
+	ArmorDetector(const ArmorDetector *armorDetector);
+	~ArmorDetector(){}
 
-	void init(const ArmorParam& armorParam);
-
-	void setEnemyColor(ColorChannels enemy_color);
+	void setEnemyColor(int enemy_color);
 
 	int detect();
 
@@ -174,15 +174,16 @@ private:
 	int enemy_color;
 	int self_color;
 
-	cv::Mat srcImg; //source img
-	cv::Mat grayImg; //gray img of roi
+	cv::Mat srcImg;
+	cv::Mat grayImg; 
+	cv::Mat roiImg;
 
 	std::vector<ArmorDescription> armors;
 
-	ArmorDescription targetArmor; //relative coordinates
+	ArmorDescription targetArmor; 
 
 	int flag;
-	
+	// bool trackingMode;
 };
 
 }

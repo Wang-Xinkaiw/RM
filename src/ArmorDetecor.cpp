@@ -9,6 +9,7 @@ using namespace cv;
 using namespace cv::ml;
 using namespace std;
 using namespace rm;
+//调试模块
 #define TEST_ARMOR_DETECOR
 
 namespace rm
@@ -138,7 +139,7 @@ cv::RotatedRect& adjustRec(cv::RotatedRect& rec, const int mode)	//调整矩阵
 
 ArmorDescription::ArmorDescription()
 {
-	
+	//numScore = 0;
 	vertex.resize(4);
 	for(int i = 0; i < 4; i++)
 	{
@@ -173,7 +174,7 @@ ArmorDescription::ArmorDescription(const LightDescription & l_Light, const Light
 	vertex[1] = upper_r;
 	vertex[2] = lower_r;
 	vertex[3] = lower_l;
-
+	cv::Line(pst_r[2],)
 	center = ((pts_l[2] + pts_l[3])/2 +(pts_r[0] + pts_r[1])/2)/2;
 
 	type = armorType;
@@ -182,21 +183,18 @@ ArmorDescription::ArmorDescription(const LightDescription & l_Light, const Light
 	Point2f srcImgCenter(grayImg.cols / 2, grayImg.rows / 2);
 }
 
-ArmorDetector::ArmorDetector()
-{
-	flag = ARMOR_NO;
-}
-
-ArmorDetector::ArmorDetector(const ArmorParam & armorParam)
-{
-	param = armorParam;
-	flag = ARMOR_NO;
-}
-
-void ArmorDetector::init(const ArmorParam &ArmorParam)
+ArmorDetector::ArmorDetector(const ArmorParam& armorParam)
 {
 	param = ArmorParam;
+	flag = ARMOR_NO;
 }
+
+ArmorDetector::ArmorDetector(const ArmorDetector *armorDetector)
+{
+	param = armorDetector->armorParam;
+	flag = ARMOR_NO;
+}
+
 
 void ArmorDetector::setEnemyColor(ColorChannels enemy_color)
 {
