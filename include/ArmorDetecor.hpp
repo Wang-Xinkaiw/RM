@@ -116,9 +116,9 @@ public:
 	
 	ArmorDescription();
 
-	
 	ArmorDescription( const LightDescription& l_Light, const LightDescription& r_Light, const int armorType, const cv::Mat& srcImg,ArmorParam param);
-	
+	~ArmorDescription();
+
 	void clear()
 	{
 		//numScore = 0;
@@ -143,7 +143,7 @@ public:
 	int type;
 };
 
-
+//main class
 class ArmorDetector
 {
 public:
@@ -152,19 +152,20 @@ public:
 	{
 		ARMOR_NO = 0,		// not found
 		ARMOR_LOST = 1,		// lose tracking
-		ARMOR_NEW = 2,	// armor found new
+		ARMOR_NEW = 2,		// armor found new
 		ARMOR_LOCAL = 3		// armor found locally(in tracking mode)
 	};
 
     ArmorDetector(const ArmorParam& armorParam);
 	ArmorDetector(const ArmorDetector *armorDetector);
-	~ArmorDetector(){}
+	~ArmorDetector() {}
 
 	void setEnemyColor(int enemy_color);
 
+	//main function
 	int detect();
 
-	const std::vector<cv::Point2f> getArmorVertex() const;
+	std::vector<cv::Point2f> getArmorVertex() const;
 
     int getArmorType() const;
 

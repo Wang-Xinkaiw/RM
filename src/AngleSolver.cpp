@@ -82,25 +82,7 @@ AngleSolver::AngleFlag AngleSolver::solve()
 		
 		return ANGLES_AND_DISTANCE;
 	}
-	//单点解算
-	/*if(angle_solver_algorithm == 0)
-	{
-		double x1, x2, y1, y2, r2, k1, k2, p1, p2, y_ture;
-		x1 = (centerPoint.x - _cam_instant_matrix.at<double>(0, 2)) / _cam_instant_matrix.at<double>(0, 0);
-		y1 = (centerPoint.y - _cam_instant_matrix.at<double>(1, 2)) / _cam_instant_matrix.at<double>(1, 1);
-		r2 = x1 * x1 + y1 * y1;
-		k1 = _params.DISTORTION_COEFF.at<double>(0, 0);
-		k2 = _params.DISTORTION_COEFF.at<double>(1, 0);
-		p1 = _params.DISTORTION_COEFF.at<double>(2, 0);
-		p2 = _params.DISTORTION_COEFF.at<double>(3, 0);
-		x2 = x1 * (1 + k1 * r2 + k2 * r2*r2) + 2 * p1*x1*y1 + p2 * (r2 + 2 * x1*x1);
-		y2 = y1 * (1 + k1 * r2 + k2 * r2*r2) + 2 * p2*x1*y1 + p1 * (r2 + 2 * y1*y1);
-		y_ture = y2 - _params.Y_DISTANCE_BETWEEN_GUN_AND_CAM / 1000;
-		xErr = atan(x2) / 2 / CV_PI * 360;
-		yErr = atan(y_ture) / 2 / CV_PI * 360;
-		
-		return ONLY_ANGLES;
-	}*/
+	
 	
 	return ANGLE_ERROR;
 }

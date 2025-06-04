@@ -174,13 +174,17 @@ ArmorDescription::ArmorDescription(const LightDescription & l_Light, const Light
 	vertex[1] = upper_r;
 	vertex[2] = lower_r;
 	vertex[3] = lower_l;
-	cv::Line(pst_r[2],)
-	center = ((pts_l[2] + pts_l[3])/2 +(pts_r[0] + pts_r[1])/2)/2;
+	cv::intersectConvexConvex(
+		std::vector<cv::Point2f>(upper_l, lower_r),
+		std::vector<cv::Point2f>(lower_l, upper_r),
+		center
+	);
+	//center = ((pts_l[2] + pts_l[3])/2 +(pts_r[0] + pts_r[1])/2)/2;
 
 	type = armorType;
 
 	// calculate the distance score
-	Point2f srcImgCenter(grayImg.cols / 2, grayImg.rows / 2);
+	//Point2f srcImgCenter(grayImg.cols / 2, grayImg.rows / 2);
 }
 
 ArmorDetector::ArmorDetector(const ArmorParam& armorParam)
@@ -192,7 +196,7 @@ ArmorDetector::ArmorDetector(const ArmorParam& armorParam)
 ArmorDetector::ArmorDetector(const ArmorDetector *armorDetector)
 {
 	param = armorDetector->armorParam;
-	flag = ARMOR_NO;
+	flag = armorDetector->flag;
 }
 
 
@@ -209,137 +213,132 @@ int ArmorDetector::detect()
 	AngleSolverParam angleParam;
 
 	std::vector<LightDescription> lightInfos;
-	{	
-		vector<Mat> channels;
-		//视频流
-		cv::VideoCapture cap("/home/bill/Downloads/test_video/Video_20250111143817266.avi");  
-		if (!cap.isOpened()) 
-		{  
-			std::cout << "Error opening video file" << std::endl;
-			return -1;
-		}
-		cv::Mat srcImg;
-		
-		while (cap.isOpened()) 
-		{
-		cap >> srcImg; 
-		if (srcImg.empty()) 
-		{
-		std::cout << "End of video" << std::endl;
-		break;
-		}
-
-		/*
-		split(srcImg,channels);
-		if (!channels.empty() && channels.size() >= 3) 
-		{
-			if(enemy_color == RED)
-    			{
-					grayImg = channels.at(2)-channels.at(0);
-				}
- 			else grayImg = channels.at(0)-channels.at(2);
-		}
-		else cout<<"ERROR at channels"<<endl;
-		*/
-		cvtColor(srcImg, grayImg, COLOR_BGR2GRAY);  
-		
+	{
 		cv::Mat beBright_Img;
+		std::vector<cv::Mat> channels;
 
-		//grayImg = GaussianBlur(grayImg, (5, 5), 0);
-		
+		//直接通过敌方颜色进行二值化
+		cv::split(srcImg, channels);
+		if (!channels.empty() && channels.size() >= 3)
+		{
+			if (enemy_color == RED)
+			{
+				grayImg = channels.at(2) - channels.at(0);
+			}
+			else grayImg = channels.at(0) - channels.at(2);
+		}
+		else cout << "ERROR at channels" << endl;
+
+		//cvtColor(srcImg, grayImg, COLOR_BGR2GRAY);  
+
+		cv::GaussianBlur(grayImg, grayImg, cv::Size(5, 5), 0);
+
 		cv::threshold(grayImg, beBright_Img, param.brightness_threshold, 255, cv::THRESH_BINARY);
-
-		cv::Mat element = cv::getStructuringElement(cv::MORPH_ELLIPSE, Size(3,3));
+		//结构元素
+		cv::Mat element = cv::getStructuringElement(cv::MORPH_ELLIPSE, Size(3, 3));
+		//膨胀
 		dilate(beBright_Img, beBright_Img, element);
 
-		//imshow("dilate img",beBright_Img);
-		//waitKey(1);
-		
+#ifdef DEBUG_PRETREATMENT
+		imshow("dilate img", beBright_Img);
+		waitKey(0);
+#endif
+		//用来存储多个多边形的轮廓点
 		std::vector<vector<Point>> lightContours;
+		//寻找轮廓（检测最外层轮廓，保留端点）
 		cv::findContours(beBright_Img.clone(), lightContours, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
-		for(const auto& contour : lightContours)
+		//遍历轮廓提取灯条
+		for (const auto& contour : lightContours)
 		{
 			float lightContourArea = contourArea(contour);
-			if(contour.size() <= 5 || lightContourArea < param.light_min_area) continue;
-
+			//通过面积进行筛选
+			if (contour.size() <= 5 ||
+				lightContourArea < param.light_min_area) continue;
+			//椭圆拟合
 			RotatedRect lightRec = fitEllipse(contour);
-
+			//矫正灯条
 			adjustRec(lightRec, ANGLE_TO_UP);
 
-			if(lightRec.size.width / lightRec.size.height > param.light_max_ratio ||
-			   lightContourArea / lightRec.size.area() < param.light_contour_min_solidity) continue;
+			//用宽高比，凸度筛选灯条
+			if (lightRec.size.width / lightRec.size.height > param.light_max_ratio ||
+				lightContourArea / lightRec.size.area() < param.light_contour_min_solidity) continue;
 
+			//适当扩大灯条轮廓大小
 			lightRec.size.width *= param.light_color_detect_extend_ratio;
 			lightRec.size.height *= param.light_color_detect_extend_ratio;
-		
+			//矩形拟合
 			cv::Rect lightRect = lightRec.boundingRect();
-			
+
 			lightInfos.push_back(LightDescription(lightRec));
-
-			//Point2f vertice[4];
-			//lightRec.points(vertice);
-			//for (int i = 0; i < 4; i++){
-			//line(beBright_Img, vertice[i], vertice[(i + 1) % 4], Scalar(255, 0, 0), 2);
-			//在图像 FirstResult 上绘制线段，连接旋转矩形的相邻顶点。线段的颜色为青色（绿色和蓝色的混合，由 Scalar(0, 255, 255) 指定），线宽为2个像素。(i + 1) % 4 确保在绘制最后一个顶点后，线条会连接回第一个顶点，形成一个闭合的四边形
-			//cv::putText(beBright_Img, std::to_string(lightRec.angle), lightRec.center, cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 255), 2);}
-			//绘制旋转矩形的角度值
-			//imshow("FirstResult",beBright_Img);
-			//waitKey(0);
-			
-
 		}
-		if(lightInfos.empty())
-		{	
-			cout<<"ERROR at lightInfos"<<endl;
+#ifdef DEBUG_FIRSTRESULT
+		Point2f vertice[4];
+		lightRec.points(vertice);
+		//在图像 FirstResult 上绘制线段，连接旋转矩形的相邻顶点。
+		// 线段的颜色为青色，线宽为2个像素。
+		for (int i = 0; i < 4; i++) {
+			line(beBright_Img, vertice[i], vertice[(i + 1) % 4], Scalar(255, 0, 0), 2);
+			cv::putText(beBright_Img, std::to_string(lightRec.angle), lightRec.center, cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 255), 2);
+		}
+		//绘制旋转矩形的角度值
+		imshow("FirstResult", beBright_Img);
+		waitKey(0);
+#endif
+
+		if (lightInfos.empty())
+		{
+			cout << "ERROR at lightInfos" << endl;
 			return flag = ARMOR_NO;
 		}
+	}
 
-		{	
+	{
+		//依据中心x从小到大，对灯条进行排序
 		sort(lightInfos.begin(), lightInfos.end(), [](const LightDescription& ld1, const LightDescription& ld2)
 		{
 			return ld1.center.x < ld2.center.x;
 		});
-		
-		for(size_t i = 0; i < lightInfos.size(); i++)
+
+		for (size_t i = 0; i < lightInfos.size(); i++)
 		{
-			for(size_t j = i + 1; (j < lightInfos.size()); j++)
+			for (size_t j = i + 1; (j < lightInfos.size()); j++)
 			{
-				const LightDescription& leftLight=lightInfos[i];
-				const LightDescription& rightLight=lightInfos[j];
-			
+				const LightDescription& leftLight = lightInfos[i];
+				const LightDescription& rightLight = lightInfos[j];
+
 				float angleDiff_ = abs(leftLight.angle - rightLight.angle);
-			
+
 				float LenDiff_ratio = abs(leftLight.length - rightLight.length) / max(leftLight.length, rightLight.length);
-				
-				if(angleDiff_ > param.light_max_angle_diff_ ||
-				   LenDiff_ratio > param.light_max_height_diff_ratio_)
+
+				if (angleDiff_ > param.light_max_angle_diff_ ||
+					LenDiff_ratio > param.light_max_height_diff_ratio_)
 				{
 					continue;
 				}
 
-				float dis = sqrt((leftLight.center.x-rightLight.center.x)*(leftLight.center.x-rightLight.center.x)+(leftLight.center.y-rightLight.center.y)*(leftLight.center.y-rightLight.center.y));
+				float dis = sqrt((leftLight.center.x - rightLight.center.x) * (leftLight.center.x - rightLight.center.x) + (leftLight.center.y - rightLight.center.y) * (leftLight.center.y - rightLight.center.y));
 
 				float meanLen = (leftLight.length + rightLight.length) / 2;
-				
+
 				float yDiff = abs(leftLight.center.y - rightLight.center.y);
-			
+
 				float yDiff_ratio = yDiff / meanLen;
-			
+
 				float xDiff = abs(leftLight.center.x - rightLight.center.x);
-			
+
 				float xDiff_ratio = xDiff / meanLen;
-			
+
 				float ratio = dis / meanLen;
-		
-				if(yDiff_ratio > param.light_max_y_diff_ratio_ ||
-				   xDiff_ratio < param.light_min_x_diff_ratio_ ||
-				   ratio > param.armor_max_aspect_ratio_ ||
-				   ratio < param.armor_min_aspect_ratio_)
+
+				if (yDiff_ratio > param.light_max_y_diff_ratio_ ||
+					xDiff_ratio < param.light_min_x_diff_ratio_ ||
+					ratio > param.armor_max_aspect_ratio_ ||
+					ratio < param.armor_min_aspect_ratio_)
 				{
 					continue;
 				}
 
-				
+
 				int armorType = ratio > param.armor_big_armor_ratio ? BIG_ARMOR : SMALL_ARMOR;
 
 				/*
@@ -348,97 +347,74 @@ int ArmorDetector::detect()
 				float yOff = yDiff / meanLen;
 				float rotationScore = -(ratiOff * ratiOff + yOff * yOff);
 				*/
-				
+
 				ArmorDescription armor(leftLight, rightLight, armorType, grayImg, param);
 				armors.emplace_back(armor);
 				break;
 			}
-			
+
 		}
-	
+
 		//if(armors.empty())
 		//{
 		//	return flag = ARMOR_NO;
 		//}
+	}
+	/*
+	armors.erase(remove_if(armors.begin(), armors.end(), [](ArmorDescription& i)
+	{
+		return !(i.isArmorPattern());
+	}), armors.end());
+	//如果全都不是装甲板
+	if(armors.empty())
+	{	//清空目标装甲板
+		targetArmor.clear();
 
-			/*
-		armors.erase(remove_if(armors.begin(), armors.end(), [](ArmorDescription& i)
+		if(flag == ARMOR_LOCAL)
 		{
-			return !(i.isArmorPattern());
-		}), armors.end());
-		//如果全都不是装甲板
-		if(armors.empty())
-		{	//清空目标装甲板
-			targetArmor.clear();
-
-			if(flag == ARMOR_LOCAL)
-			{
-				return flag = ARMOR_LOST;
-			}
-			else
-			{
-				return flag = ARMOR_NO;
-			}
+			return flag = ARMOR_LOST;
 		}
-		for(auto & armor : armors)
+		else
 		{
-			armor.finalScore = armor.sizeScore + armor.distScore + armor.rotationScore;
-		}
-
-		//choose the one with highest score, store it on _targetArmor
-		std::sort(armors.begin(), armors.end(), [](const ArmorDescription & a, const ArmorDescription & b)
-		{
-			return a.finalScore > b.finalScore;
-		});
-		targetArmor = armors[0];
-
-		//update the flag status	
-		trackCnt++;
-
-		return flag = ARMOR_LOCAL;
-		*/
-
-		}
-
-		angleParam.readFile(1);//only 0 1 2 
-		AngleSolver angleSolver;
-		AngleSolver();
-		angleSolver.init(angleParam);
-		
-		for(auto& armor :armors)
-		{	
-			angleSolver.set_EnemyType(1);
-			angleSolver.set_Target(armor.vertex, 1);
-			cout<<armor.vertex<<endl;
-			angleSolver.solve();
-		}
-		
-		cout<<angleSolver.get_Angle()<<endl;
-		cout<<angleSolver.get_Distance()<<endl;
-		waitKey(10);
-		showLights(srcImg, lightInfos);
-		showArmors(srcImg, armors, targetArmor);
-		if(!lightInfos.empty())
-		{
-			lightInfos.clear();
-			
-		}
-		
-		if(!armors.empty())
-		{
-			armors.clear();
-			targetArmor.clear();
-		}
+			return flag = ARMOR_NO;
 		}
 	}
-	srcImg.release();
-	destroyAllWindows();
-}
+	for(auto & armor : armors)
+	{
+		armor.finalScore = armor.sizeScore + armor.distScore + armor.rotationScore;
+	}
 
-// int getArmorType()
-// {
-// 	return ArmorDescription::type;
-// }
+	//choose the one with highest score, store it on _targetArmor
+	std::sort(armors.begin(), armors.end(), [](const ArmorDescription & a, const ArmorDescription & b)
+	{
+		return a.finalScore > b.finalScore;
+	});
+	targetArmor = armors[0];
+
+	//update the flag status
+	trackCnt++;
+
+	return flag = ARMOR_LOCAL;
+	*/
+}
+	
+
+
+std::vector<cv::Point2f> ArmorDetector::getArmorVertex() const
+{
+	vector<cv::Point2f> realVertex;
+	for (int i = 0; i < 4; i++)
+	{
+		realVertex.emplace_back(Point2f(_targetArmor.vertex[i].x + _roi.tl().x,
+			_targetArmor.vertex[i].y + _roi.tl().y));
+	}
+	return realVertex;
+}
+	
+int ArmorDetector::getArmorType() const
+{
+return ArmorDescription::type;
+}
 
 }
 
